@@ -8,7 +8,7 @@ This class starts with very simple logic:
   - Compute a numeric score
   - Convert that score into a mood label
 """
-
+import re
 from typing import List, Dict, Tuple, Optional
 
 from dataset import POSITIVE_WORDS, NEGATIVE_WORDS
@@ -53,6 +53,10 @@ class MoodAnalyzer:
           - Normalize repeated characters ("soooo" -> "soo")
         """
         cleaned = text.strip().lower()
+    
+        # Remove punctuation (keep emojis)
+        cleaned = re.sub(r"[^\w\s:)(😂💀😒🥲🔥]", "", cleaned) 
+    
         tokens = cleaned.split()
 
         return tokens
@@ -83,7 +87,106 @@ class MoodAnalyzer:
         #
         # Hint: if you implement negation, you may want to look at pairs of tokens,
         # like ("not", "happy") or ("never", "fun").
-        pass
+        
+        tokens = self.preprocess(text)
+        score = 0
+
+        negation_words = {"not", "no", "never", "n't"}
+        intensifiers = {"very": 2, "so": 2, "really": 2, "super": 2, "extremely": 3}
+        downtoners = {"kind": -1, "kinda": -1, "sort": -1, "slightly": -1, "little": -1}
+
+        emoji_map = {
+            "😂": 2, "🔥": 2, "😊": 1,
+            "😒": -2, "💀": -1, "🥲": -1
+        }
+
+        slang_pos = {"lol": 1, "haha": 1, "wild": 1, "lit": 2, "good": 1}
+        slang_neg = {"mid": -2, "trash": -3, "annoying": -2, "tired": -1}
+
+        neg_window = 0  # FIX: proper scoped negation instead of global flip
+
+        i = 0
+        while i < len(tokens):
+            token = tokens[i]
+
+            # ----------------------------
+            # 1. NEGATION SCOPING FIX
+            # ----------------------------
+            if token in negation_words:
+                neg_window = 2  # affects next 2 tokens only
+                i += 1
+                continue
+
+            is_negated = neg_window > 0
+
+            # ----------------------------
+            # 2. PHRASE HANDLING (context fix)
+            # ----------------------------
+            if i + 1 < len(tokens):
+                phrase = token + " " + tokens[i + 1]
+
+                if phrase == "not bad":
+                    score += 2
+                    i += 2
+                    neg_window = max(0, neg_window - 1)
+                    continue
+
+                if phrase in {"not good", "not happy", "not great"}:
+                    score -= 2
+                    i += 2
+                    neg_window = max(0, neg_window - 1)
+                    continue
+
+                if phrase in {"kind of good", "kinda good"}:
+                    score += 0
+                    i += 2
+                    neg_window = max(0, neg_window - 1)
+                    continue
+
+            # ----------------------------
+            # 3. BASE SENTIMENT
+            # ----------------------------
+            token_score = 0
+
+            if token in self.positive_words:
+                token_score += 1
+            elif token in self.negative_words:
+                token_score -= 1
+
+            # ----------------------------
+            # 4. SLANG + CONTEXT FIX
+            # ----------------------------
+            if token in slang_pos:
+                token_score += slang_pos[token]
+            if token in slang_neg:
+                token_score += slang_neg[token]
+
+            # ----------------------------
+            # 5. EMOJI (kept moderate)
+            # ----------------------------
+            if token in emoji_map:
+                token_score += emoji_map[token]
+
+            # ----------------------------
+            # 6. INTENSIFIERS / DOWNTONERS
+            # ----------------------------
+            if token in intensifiers:
+                token_score *= intensifiers[token]
+
+            if token in downtoners:
+                token_score *= downtoners[token]
+
+            # ----------------------------
+            # 7. NEGATION (LOCAL FIX)
+            # ----------------------------
+            if is_negated:
+                token_score *= -1
+                neg_window -= 1
+
+            score += token_score
+            i += 1
+
+        return score
 
     # ---------------------------------------------------------------------
     # Label prediction
@@ -110,7 +213,16 @@ class MoodAnalyzer:
         #   2. Return "positive" if the score is above 0.
         #   3. Return "negative" if the score is below 0.
         #   4. Return "neutral" otherwise.
-        pass
+        score = self.score_text(text)
+
+        if score >= 1:
+            return "positive"
+        elif score <= -1:
+            return "negative"
+        elif -1 < score < 1:
+            return "neutral"
+        else:
+            return "mixed"
 
     # ---------------------------------------------------------------------
     # Explanations (optional but recommended)
@@ -134,20 +246,54 @@ class MoodAnalyzer:
         """
         tokens = self.preprocess(text)
 
-        positive_hits: List[str] = []
-        negative_hits: List[str] = []
+        positive_hits = []
+        negative_hits = []
         score = 0
 
-        for token in tokens:
+        i = 0
+        while i < len(tokens):
+            token = tokens[i]
+
+            if token == "but":
+                score = 0
+                i += 1
+                continue
+
+            if token in ["not", "no", "never"] and i + 1 < len(tokens):
+                next_token = tokens[i + 1]
+
+                if next_token in self.positive_words:
+                    negative_hits.append(f"not {next_token}")
+                    score -= 1
+                    i += 2
+                    continue
+                elif next_token in self.negative_words:
+                    positive_hits.append(f"not {next_token}")
+                    score += 1
+                    i += 2
+                    continue
+
             if token in self.positive_words:
                 positive_hits.append(token)
                 score += 1
-            if token in self.negative_words:
+            elif token in self.negative_words:
                 negative_hits.append(token)
                 score -= 1
 
-        return (
-            f"Score = {score} "
-            f"(positive: {positive_hits or '[]'}, "
-            f"negative: {negative_hits or '[]'})"
-        )
+            if token in ["😂", "🔥", "😊"]:
+                positive_hits.append(token)
+                score += 1
+            elif token in ["😒", "💀", "🥲"]:
+                negative_hits.append(token)
+                score -= 1
+
+            if token == "love":
+                positive_hits.append(token)
+                score += 1
+            elif token == "hate":
+                negative_hits.append(token)
+                score -= 1
+
+            i += 1
+
+        return f"Score = {score} (positive: {positive_hits}, negative: {negative_hits})"

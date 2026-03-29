@@ -27,8 +27,8 @@ def evaluate_rule_based(posts: List[str], labels: List[str]) -> float:
             correct += 1
 
         # If you implement explain(), you can uncomment these lines:
-        # reason = analyzer.explain(text)
-        # print(f'"{text}" -> predicted={predicted_label}, true={true_label} ({reason})')
+        reason = analyzer.explain(text)
+        print(f'"{text}" -> predicted={predicted_label}, true={true_label} ({reason})')
 
         print(f'"{text}" -> predicted={predicted_label}, true={true_label}')
 

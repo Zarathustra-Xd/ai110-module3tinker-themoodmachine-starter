@@ -92,3 +92,34 @@ TRUE_LABELS = [
 #
 # Remember to keep them aligned:
 #   len(SAMPLE_POSTS) == len(TRUE_LABELS)
+
+# Add to SAMPLE_POSTS
+SAMPLE_POSTS.extend([
+    "Lowkey stressed but I think I got this",
+    "This food is mid 💀",
+    "I absolutely love waiting in long lines 😒",
+    "Best day ever!!! 😂",
+    "Not bad actually",
+    "I’m tired… but also kinda happy",
+    "Bruh this is so annoying",
+    "That was wild lol",
+    "I guess it could’ve been worse",
+    "This is fine 🔥",
+])
+
+# Add to TRUE_LABELS
+TRUE_LABELS.extend([
+    "mixed",     # stressed + confidence
+    "negative",  # "mid 💀" = slang negative
+    "negative",  # sarcasm
+    "positive",  # strong positive
+    "positive",  # subtle positive
+    "mixed",     # conflicting emotions
+    "negative",  # slang frustration
+    "neutral",   # ambiguous tone
+    "mixed",     # mild negative + acceptance
+    "mixed",     # emoji ambiguity
+])
+
+
+# print(len(SAMPLE_POSTS), len(TRUE_LABELS))
